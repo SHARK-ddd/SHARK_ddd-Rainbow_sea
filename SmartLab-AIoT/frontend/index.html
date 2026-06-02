@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartLab AIoT — 智慧实验室监测系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-liquidfill@3.1.0/dist/echarts-liquidfill.min.js"></script>
+    <style>
+        :root {
+            --bg-deep: #080b1a;
+            --bg-card: rgba(12, 18, 40, 0.85);
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-glow: rgba(0, 212, 255, 0.25);
+            --accent: #00d4ff;
+            --accent2: #7c3aed;
+            --text-primary: #e8edf5;
+            --text-secondary: #8899b4;
+            --text-muted: #556677;
+            --danger: #ff4757;
+            --warning: #ffa502;
+            --success: #2ed573;
+            --temp-color: #ff6b6b;
+            --humi-color: #54a0ff;
+            --light-color: #ffd93d;
+            --radius: 16px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-deep);
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(0, 212, 255, 0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, rgba(124, 58, 237, 0.05) 0%, transparent 60%),
+                radial-gradient(ellipse at 50% 50%, rgba(0, 212, 255, 0.02) 0%, transparent 80%);
+            background-attachment: fixed;
+            font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ---- grid background ---- */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ---- header ---- */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(8, 11, 26, 0.8);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0.75rem 0;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .header-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            background: linear-gradient(135deg, #e8edf5, #a0c4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .clock-display {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #c0d8ff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+            line-height: 1;
+        }
+
+        .clock-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .badge-online {
+            background: rgba(46, 213, 115, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(46, 213, 115, 0.2);
+        }
+
+        .badge-offline {
+            background: rgba(255, 71, 87, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(255, 71, 87, 0.2);
+        }
+
+        .pulse-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .badge-online .pulse-dot { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse-dot 2s infinite; }
+        .badge-offline .pulse-dot { background: var(--danger); }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ---- cards ---- */
+        .card-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .card-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+
+        .card-panel:hover {
+            border-color: var(--border-glow);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+        .card-panel:hover::before { opacity: 1; }
+
+        .card-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+
+        .card-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title i {
+            font-size: 0.85rem;
+            color: var(--accent);
+        }
+
+        /* ---- stat mini cards ---- */
+        .stat-mini {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-mini-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1;
+        }
+        .stat-mini-value.temp { color: var(--temp-color); text-shadow: 0 0 30px rgba(255, 107, 107, 0.3); }
+        .stat-mini-value.humi { color: var(--humi-color); text-shadow: 0 0 30px rgba(84, 160, 255, 0.3); }
+        .stat-mini-value.light-val { color: var(--light-color); text-shadow: 0 0 30px rgba(255, 217, 61, 0.3); }
+        .stat-mini-value.window-open { color: var(--danger); }
+        .stat-mini-value.window-closed { color: var(--success); }
+
+        .stat-mini-unit {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 2px;
+        }
+
+        .stat-mini-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }
+
+        .stat-mini-update {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
+        /* ---- chart containers ---- */
+        .chart-box {
+            width: 100%;
+            height: 100%;
+            min-height: 220px;
+        }
+        .chart-box.large { min-height: 280px; }
+        .chart-box.gauge-box { min-height: 240px; }
+        .chart-box.heatmap-box { min-height: 260px; }
+        .chart-box.donut-box { min-height: 240px; }
+
+        /* ---- alarm panel ---- */
+        .alarm-list {
+            max-height: 220px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .alarm-list::-webkit-scrollbar { width: 4px; }
+        .alarm-list::-webkit-scrollbar-track { background: transparent; }
+        .alarm-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+        .alarm-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            animation: slideIn 0.3s ease;
+            border: 1px solid transparent;
+        }
+        .alarm-item.danger {
+            background: rgba(255, 71, 87, 0.08);
+            border-color: rgba(255, 71, 87, 0.15);
+            color: #ff6b7a;
+        }
+        .alarm-item.warning {
+            background: rgba(255, 165, 2, 0.08);
+            border-color: rgba(255, 165, 2, 0.15);
+            color: #ffb733;
+        }
+
+        .alarm-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+        .alarm-time { font-size: 0.68rem; opacity: 0.6; margin-top: 4px; }
+        .alarm-close {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: rgba(255,255,255,0.5);
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            margin-left: auto;
+        }
+        .alarm-close:hover {
+            background: rgba(255,71,87,0.3);
+            color: #ff4757;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-12px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ---- btn ---- */
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .btn-glass:hover {
+            background: rgba(255, 71, 87, 0.12);
+            border-color: rgba(255, 71, 87, 0.3);
+            color: var(--danger);
+        }
+
+        /* ---- responsive ---- */
+        @media (max-width: 768px) {
+            .header-title { font-size: 0.95rem; }
+            .clock-display { font-size: 1.2rem; }
+            .stat-mini-value { font-size: 1.6rem; }
+            .card-panel { padding: 1rem; }
+            .chart-box { min-height: 180px; }
+            .chart-box.large { min-height: 220px; }
+            .chart-box.gauge-box { min-height: 200px; }
+            .chart-box.heatmap-box { min-height: 220px; }
+            .chart-box.donut-box { min-height: 200px; }
+        }
+
+        @media (max-width: 576px) {
+            .header { padding: 0.5rem 0; }
+            .header-title { display: none; }
+            .clock-display { font-size: 1rem; }
+            .stat-mini-value { font-size: 1.4rem; }
+            .chart-box { min-height: 160px; }
+            .chart-box.large { min-height: 200px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- ===== Header ===== -->
+    <header class="header">
+        <div class="container-fluid px-3 px-md-4">
+            <div class="row align-items-center g-3">
+                <div class="col-auto">
+                    <div class="header-logo">
+                        <div class="logo-icon"><i class="fa-solid fa-microchip"></i></div>
+                        <span class="header-title d-none d-md-inline">SmartLab AIoT</span>
+                    </div>
+                </div>
+                <div class="col text-center">
+                    <div class="clock-display" id="live-clock">--:--:--</div>
+                    <div class="clock-date" id="live-date">----</div>
+                </div>
+                <div class="col-auto d-flex align-items-center gap-3">
+                    <span class="d-none d-md-inline text-secondary" style="font-size:0.78rem;">
+                        Device: <strong id="device-id" style="color:#c0d8ff;">--</strong>
+                    </span>
+                    <span class="badge-status badge-offline" id="ws-status">
+                        <span class="pulse-dot"></span> OFFLINE
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== Main Content ===== -->
+    <main class="container-fluid px-3 px-md-4 py-3 py-md-4" style="position:relative;z-index:1;">
+
+        <!-- Row 1: 4 Stat Mini Cards + Alarm Panel -->
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-thermometer-half" style="color:var(--temp-color);"></i> Temperature</div>
+                    <div class="stat-mini">
+                        <div><span class="stat-mini-value temp" id="temperature">--</span><span class="stat-mini-unit">°C</span></div>
+                        <div class="stat-mini-update" id="temp-update">--</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-droplet" style="color:var(--humi-color);"></i> Humidity</div>
+                    <div class="stat-mini">
+                        <div><span class="stat-mini-value humi" id="humidity">--</span><span class="stat-mini-unit">%</span></div>
+                        <div class="stat-mini-update" id="humidity-update">--</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-sun" style="color:var(--light-color);"></i> Light</div>
+                    <div class="stat-mini">
+                        <div><span class="stat-mini-value light-val" id="light">--</span><span class="stat-mini-unit">lux</span></div>
+                        <div class="stat-mini-update" id="light-update">--</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-door-open"></i> Window</div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value window-closed" id="window-status">--</div>
+                        <div class="stat-mini-update" id="window-update">--</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8 col-xl-4">
+                <div class="card-panel">
+                    <div class="card-header-row">
+                        <span class="card-title"><i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);"></i> Alarm Panel</span>
+                        <button class="btn-glass" id="clear-alarms"><i class="fas fa-check-double"></i> Clear</button>
+                    </div>
+                    <div class="alarm-list" id="alarm-container">
+                        <div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:20px;">
+                            <i class="fa-solid fa-circle-check" style="color:var(--success);font-size:1.5rem;display:block;margin-bottom:8px;"></i>
+                            All systems normal
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Gauge (Light) | Liquid Fill (Humidity) | Nested Donut -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-6 col-xl-4">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-gauge-high"></i> Light Intensity — Gauge</div>
+                    <div class="chart-box gauge-box" id="gauge-chart"></div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-4">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-water"></i> Humidity — Liquid Fill</div>
+                    <div class="chart-box gauge-box" id="liquid-chart"></div>
+                </div>
+            </div>
+            <div class="col-md-12 col-xl-4">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-chart-pie"></i> Metrics Overview — Donut</div>
+                    <div class="chart-box donut-box" id="donut-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Stacked Bar (Temp+Humidity) | Heatmap (24h) -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-7">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-chart-bar"></i> Temperature & Humidity — Stacked Comparison</div>
+                    <div class="chart-box large" id="stacked-bar-chart"></div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-table-cells"></i> 24h Environment Heatmap</div>
+                    <div class="chart-box heatmap-box" id="heatmap-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 4: Temperature Trend | Light Trend -->
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-chart-line" style="color:var(--temp-color);"></i> Temperature Trend</div>
+                    <div class="chart-box" id="temperature-chart"></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card-panel">
+                    <div class="card-title"><i class="fa-solid fa-chart-line" style="color:var(--light-color);"></i> Light Intensity Trend</div>
+                    <div class="chart-box" id="light-chart"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    /* ================================================================
+       SmartLab AIoT — Dark Tech Monitoring Panel
+       ================================================================ */
+
+    // ---- Data buffers ----
+    const MAX_POINTS = 60;
+    const tempData = { time: [], value: [] };
+    const humiData = { time: [], value: [] };
+    const lightData = { time: [], value: [] };
+    const heatmapBuckets = {};  // key: "HH:00", val: { tempSum, humiSum, lightSum, count }
+
+    // ---- Chart instances ----
+    let gaugeChart, liquidChart, donutChart, stackedBarChart, heatmapChart;
+    let temperatureChart, lightChart;
+
+    // ---- WebSocket ----
+    let ws;
+
+    // ---- Live Clock ----
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('live-clock').textContent =
+            now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('live-date').textContent =
+            now.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    function lightLogScale(value) {
+        if (value <= 0) return 0;
+        if (value <= 10) return value / 10 * 0.08;
+        if (value <= 100) return 0.08 + Math.log10(value / 10) * 0.22;
+        if (value <= 1000) return 0.3 + Math.log10(value / 100) * 0.4;
+        return 0.7 + (value - 1000) / 3095 * 0.3;
+    }
+
+    function lightValueToAngle(value) {
+        const logPos = lightLogScale(value);
+        return 210 - logPos * 240;
+    }
+
+    // ---- Common ECharts dark theme base ----
+    function darkAxis() {
+        return {
+            axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+            axisTick: { show: false },
+            axisLabel: { color: '#556677', fontSize: 10 },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+        };
+    }
+
+    function darkTooltip() {
+        return {
+            backgroundColor: 'rgba(8,11,26,0.96)',
+            borderColor: 'rgba(0,212,255,0.2)',
+            textStyle: { color: '#e8edf5', fontSize: 12 },
+            padding: [12, 16],
+            extraCssText: 'border-radius:10px;backdrop-filter:blur(10px);'
+        };
+    }
+
+    // ---- Init all charts ----
+    function initAllCharts() {
+        // --- Gauge: Light Intensity ---
+        gaugeChart = echarts.init(document.getElementById('gauge-chart'));
+        const gaugeScale = [0, 10, 20, 50, 80, 100, 200, 300, 500, 800, 1000, 1500, 2000, 3000, 4095];
+        gaugeChart.setOption({
+            series: [{
+                type: 'gauge',
+                startAngle: 210, endAngle: -30,
+                center: ['50%', '58%'], radius: '90%',
+                min: 0, max: 4095,
+                splitNumber: gaugeScale.length - 1,
+                axisLine: {
+                    show: true,
+                    lineStyle: {
+                        width: 18,
+                        color: [
+                            [0.08, '#4a5568'],
+                            [0.25, '#667eea'],
+                            [0.5, '#00d4ff'],
+                            [0.75, '#48bb78'],
+                            [1, '#ffd93d']
+                        ]
+                    }
+                },
+                pointer: { icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z', length: '70%', width: 8, offsetCenter: [0, '-10%'], itemStyle: { color: 'auto' } },
+                axisTick: { distance: -18, length: 6, lineStyle: { width: 1, color: '#666' } },
+                splitLine: { 
+                    distance: -22, 
+                    length: 18, 
+                    lineStyle: { width: 2.5, color: '#999' },
+                    show: true
+                },
+                axisLabel: {
+                    color: '#8899b4',
+                    distance: 30,
+                    fontSize: 8,
+                    formatter: function(value, index) {
+                        if (index === 0) return '0';
+                        if (index === gaugeScale.length - 1) return '4095';
+                        return value;
+                    }
+                },
+                anchor: { show: true, showAbove: true, size: 18, itemStyle: { borderWidth: 2, borderColor: '#00d4ff' } },
+                title: { show: true, offsetCenter: [0, '78%'], fontSize: 13, color: '#8899b4' },
+                detail: {
+                    valueAnimation: true,
+                    fontSize: 28, fontWeight: 'bold',
+                    color: '#ffd93d',
+                    offsetCenter: [0, '50%'],
+                    formatter: '{value}'
+                },
+                data: [{ value: 0, name: 'Light' }]
+            }]
+        });
+
+        // --- Liquid Fill: Humidity ---
+        liquidChart = echarts.init(document.getElementById('liquid-chart'));
+        liquidChart.setOption({
+            series: [{
+                type: 'liquidFill',
+                radius: '78%',
+                center: ['50%', '52%'],
+                data: [0.0],
+                color: [{ type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                        { offset: 0, color: '#54a0ff' },
+                        { offset: 0.5, color: '#2e86de' },
+                        { offset: 1, color: '#1e5fa8' }
+                    ],
+                    global: false
+                }],
+                backgroundStyle: { color: 'rgba(84,160,255,0.08)', borderColor: 'rgba(84,160,255,0.2)', borderWidth: 1.5, shadowBlur: 0 },
+                outline: { show: false },
+                label: {
+                    fontSize: 30, fontWeight: 'bold', color: '#c0d8ff',
+                    formatter: function(p) { return (p.value * 100).toFixed(1) + '%'; }
+                },
+                emphasis: { disabled: true }
+            }]
+        });
+
+        // --- Nested Donut: Environment Overview ---
+        donutChart = echarts.init(document.getElementById('donut-chart'));
+        donutChart.setOption({
+            tooltip: {
+                ...darkTooltip(),
+                formatter: function(params) {
+                    const statusMap = {
+                        'temp-good': '温度正常',
+                        'temp-warning': '温度警告',
+                        'temp-danger': '温度异常',
+                        'humi-good': '湿度正常',
+                        'humi-warning': '湿度警告',
+                        'humi-danger': '湿度异常',
+                        'light-good': '光照正常',
+                        'light-warning': '光照警告',
+                        'light-danger': '光照异常'
+                    };
+                    return statusMap[params.name] || params.name;
+                }
+            },
+            series: [
+                {
+                    name: 'Score', type: 'gauge',
+                    radius: '35%',
+                    center: ['50%', '47%'],
+                    min: 0, max: 100,
+                    splitNumber: 0,
+                    axisLine: { show: false },
+                    pointer: { show: false },
+                    axisTick: { show: false },
+                    splitLine: { show: false },
+                    axisLabel: { show: false },
+                    title: { show: false },
+                    detail: {
+                        fontSize: 24,
+                        fontWeight: 'bold',
+                        color: '#e8edf5',
+                        offsetCenter: [0, 0],
+                        formatter: '85'
+                    },
+                    data: [{ value: 85, name: 'Score' }]
+                },
+                {
+                    name: 'Inner', type: 'pie',
+                    radius: ['38%', '52%'],
+                    center: ['50%', '47%'],
+                    startAngle: 90,
+                    itemStyle: { borderRadius: 4 },
+                    emphasis: { disabled: true },
+                    label: { show: false },
+                    labelLine: { show: false },
+                    data: [
+                        { value: 33.3, name: 'temp-good', itemStyle: { color: '#2ed573' } },
+                        { value: 33.3, name: 'humi-good', itemStyle: { color: '#54a0ff' } },
+                        { value: 33.4, name: 'light-good', itemStyle: { color: '#ffd93d' } }
+                    ]
+                },
+                {
+                    name: 'Outer', type: 'pie',
+                    radius: ['55%', '70%'],
+                    center: ['50%', '47%'],
+                    startAngle: 90,
+                    itemStyle: { borderRadius: 6 },
+                    emphasis: { disabled: true },
+                    label: {
+                        show: true,
+                        position: 'outside',
+                        color: '#8899b4',
+                        fontSize: 9,
+                        formatter: '{b}',
+                        distance: 8
+                    },
+                    labelLine: {
+                        show: true,
+                        length: 12,
+                        length2: 8,
+                        lineStyle: { color: 'rgba(255,255,255,0.2)' }
+                    },
+                    data: [
+                        { value: 33.3, name: '温度', itemStyle: { color: '#2ed573' } },
+                        { value: 33.3, name: '湿度', itemStyle: { color: '#54a0ff' } },
+                        { value: 33.4, name: '光照', itemStyle: { color: '#ffd93d' } }
+                    ]
+                }
+            ]
+        });
+
+        // --- Stacked Bar: Temp + Humidity ---
+        stackedBarChart = echarts.init(document.getElementById('stacked-bar-chart'));
+        stackedBarChart.setOption({
+            tooltip: darkTooltip(),
+            grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+            xAxis: [{ type: 'category', data: [], ...darkAxis() }],
+            yAxis: [
+                { type: 'value', name: '°C', nameTextStyle: { color: '#ff6b6b', fontSize: 10 }, ...darkAxis() },
+                { type: 'value', name: '%', nameTextStyle: { color: '#54a0ff', fontSize: 10 }, ...darkAxis() }
+            ],
+            series: [
+                { name: 'Temperature', type: 'bar', data: [], stack: 'temp', barWidth: '60%',
+                  itemStyle: { borderRadius: [4,4,0,0], color: new echarts.graphic.LinearGradient(0,0,0,1,[
+                      {offset:0,color:'#ff6b6b'},{offset:1,color:'rgba(255,107,107,0.2)'}
+                  ])}, emphasis: { disabled: true } },
+                { name: 'Humidity', type: 'bar', data: [], yAxisIndex: 1, stack: 'humi', barWidth: '60%',
+                  itemStyle: { borderRadius: [4,4,0,0], color: new echarts.graphic.LinearGradient(0,0,0,1,[
+                      {offset:0,color:'#54a0ff'},{offset:1,color:'rgba(84,160,255,0.2)'}
+                  ])}, emphasis: { disabled: true } }
+            ]
+        });
+
+        // --- Heatmap: 24h Environment ---
+        heatmapChart = echarts.init(document.getElementById('heatmap-chart'));
+        const hours = [];
+        for (let h = 0; h < 24; h++) hours.push(String(h).padStart(2, '0') + ':00');
+        const metrics = ['Temperature', 'Humidity', 'Light'];
+        const hmData = [];
+        for (let hi = 0; hi < 24; hi++) {
+            for (let mi = 0; mi < 3; mi++) {
+                hmData.push([hi, mi, 0]);
+            }
+        }
+        heatmapChart.setOption({
+            tooltip: {
+                ...darkTooltip(),
+                formatter: function(p) {
+                    return metrics[p.value[1]] + ' @ ' + hours[p.value[0]] + '<br/>Value: <b>' + (p.value[2] || 0).toFixed(1) + '</b>';
+                }
+            },
+            grid: { left: '12%', right: '5%', bottom: '5%', top: '5%' },
+            xAxis: { type: 'category', data: hours, ...darkAxis(), axisLabel: { color: '#556677', fontSize: 8, interval: 3 } },
+            yAxis: { type: 'category', data: metrics, ...darkAxis() },
+            visualMap: {
+                min: 0, max: 100,
+                calculable: true,
+                orient: 'horizontal',
+                left: 'center', bottom: 0,
+                textStyle: { color: '#8899b4', fontSize: 9 },
+                inRange: { color: ['#0a1628', '#0d3b66', '#1a73e8', '#00d4ff', '#ffd93d'] }
+            },
+            series: [{
+                type: 'heatmap', data: hmData,
+                emphasis: { disabled: true },
+                label: { show: false }
+            }]
+        });
+
+        // --- Temperature Trend ---
+        temperatureChart = echarts.init(document.getElementById('temperature-chart'));
+        temperatureChart.setOption({
+            tooltip: darkTooltip(),
+            grid: { left: '3%', right: '4%', bottom: '3%', top: '8%', containLabel: true },
+            xAxis: [{ type: 'category', data: [], ...darkAxis() }],
+            yAxis: [{ type: 'value', ...darkAxis() }],
+            series: [{
+                name: 'Temperature', type: 'line', data: [], smooth: true, symbol: 'none',
+                lineStyle: { width: 2.5, color: '#ff6b6b', shadowBlur: 8, shadowColor: 'rgba(255,107,107,0.4)' },
+                areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[
+                    {offset:0,color:'rgba(255,107,107,0.25)'},{offset:1,color:'rgba(255,107,107,0)'}
+                ])}
+            }]
+        });
+
+        // --- Light Trend ---
+        lightChart = echarts.init(document.getElementById('light-chart'));
+        lightChart.setOption({
+            tooltip: darkTooltip(),
+            grid: { left: '3%', right: '4%', bottom: '3%', top: '8%', containLabel: true },
+            xAxis: [{ type: 'category', data: [], ...darkAxis() }],
+            yAxis: [{ type: 'value', ...darkAxis() }],
+            series: [{
+                name: 'Light', type: 'line', data: [], smooth: true, symbol: 'none',
+                lineStyle: { width: 2.5, color: '#ffd93d', shadowBlur: 8, shadowColor: 'rgba(255,217,61,0.4)' },
+                areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[
+                    {offset:0,color:'rgba(255,217,61,0.25)'},{offset:1,color:'rgba(255,217,61,0)'}
+                ])}
+            }]
+        });
+    }
+
+    // ---- Update helpers ----
+    function updateGauge(value) {
+        if (!gaugeChart) return;
+        gaugeChart.setOption({ series: [{ data: [{ value: Math.round(value) }] }] });
+    }
+
+    function updateLiquid(value) {
+        if (!liquidChart) return;
+        const pct = Math.min(1, Math.max(0, value / 100));
+        liquidChart.setOption({ series: [{ data: [pct] }] });
+    }
+
+    function getStatusColor(value, min, max) {
+        if (value >= min && value <= max) return '#2ed573';
+        if (value < min) return '#ffa502';
+        return '#ff4757';
+    }
+
+    function getStatusValue(value, min, max) {
+        if (value >= min && value <= max) return 100;
+        return 60;
+    }
+
+    function updateDonut(temp, humi, light) {
+        if (!donutChart) return;
+
+        let tempScore = 100;
+        if (temp < 15 || temp > 30) tempScore = 60;
+        else if (temp < 18 || temp > 28) tempScore = 80;
+
+        let humiScore = 100;
+        if (humi < 30 || humi > 60) humiScore = 60;
+        else if (humi < 35 || humi > 55) humiScore = 80;
+
+        let lightScore = 100;
+        if (typeof light === 'number') {
+            if (light < 800 || light > 3200) lightScore = 60;
+            else if (light < 1000 || light > 2800) lightScore = 80;
+        }
+
+        const avgScore = Math.round((tempScore + humiScore + lightScore) / 3);
+        const scoreColor = avgScore >= 80 ? '#2ed573' : avgScore >= 60 ? '#ffa502' : '#ff4757';
+
+        const tempColor = getStatusColor(temp, 15, 30);
+        const humiColor = getStatusColor(humi, 30, 60);
+        const lightColor = typeof light === 'number' ? getStatusColor(light, 800, 3200) : '#2ed573';
+
+        donutChart.setOption({
+            series: [
+                {
+                    detail: {
+                        fontSize: 24,
+                        fontWeight: 'bold',
+                        color: scoreColor,
+                        formatter: avgScore.toString()
+                    },
+                    data: [{ value: avgScore, name: 'Score' }]
+                },
+                {
+                    data: [
+                        { value: getStatusValue(temp, 15, 30), name: 'temp-status', itemStyle: { color: tempColor } },
+                        { value: getStatusValue(humi, 30, 60), name: 'humi-status', itemStyle: { color: humiColor } },
+                        { value: typeof light === 'number' ? getStatusValue(light, 800, 3200) : 100, name: 'light-status', itemStyle: { color: lightColor } }
+                    ]
+                },
+                {
+                    data: [
+                        { value: 33.3, name: '温度', itemStyle: { color: tempColor } },
+                        { value: 33.3, name: '湿度', itemStyle: { color: humiColor } },
+                        { value: 33.4, name: '光照', itemStyle: { color: lightColor } }
+                    ]
+                }
+            ]
+        });
+    }
+
+    function updateStackedBar() {
+        if (!stackedBarChart) return;
+        const times = tempData.time.slice(-12);
+        const t = tempData.value.slice(-12);
+        const h = humiData.value.slice(-12);
+        stackedBarChart.setOption({ xAxis: [{ data: times }], series: [{ data: t }, { data: h }] });
+    }
+
+    function updateHeatmap() {
+        if (!heatmapChart) return;
+        const hours = [];
+        for (let h = 0; h < 24; h++) hours.push(String(h).padStart(2, '0') + ':00');
+        const data = [];
+        for (let hi = 0; hi < 24; hi++) {
+            const key = String(hi).padStart(2, '0') + ':00';
+            const bucket = heatmapBuckets[key];
+            const tVal = bucket ? (bucket.tempSum / bucket.count) : 0;
+            const hVal = bucket ? (bucket.humiSum / bucket.count) : 0;
+            const lVal = bucket ? (bucket.lightSum / bucket.count) : 0;
+            data.push([hi, 0, Math.round(tVal * 10) / 10]);
+            data.push([hi, 1, Math.round(hVal * 10) / 10]);
+            data.push([hi, 2, Math.round(lVal * 10) / 10]);
+        }
+        heatmapChart.setOption({ series: [{ data: data }] });
+    }
+
+    function addHeatmapPoint(now, temp, humi, light) {
+        const key = String(now.getHours()).padStart(2, '0') + ':00';
+        if (!heatmapBuckets[key]) heatmapBuckets[key] = { tempSum: 0, humiSum: 0, lightSum: 0, count: 0 };
+        const b = heatmapBuckets[key];
+        if (typeof temp === 'number') b.tempSum += temp;
+        if (typeof humi === 'number') b.humiSum += humi;
+        if (typeof light === 'number') b.lightSum += light;
+        b.count++;
+    }
+
+    function updateAllCharts() {
+        try {
+            if (temperatureChart) {
+                temperatureChart.setOption({ xAxis: [{ data: tempData.time }], series: [{ data: tempData.value }] });
+            }
+            if (lightChart) {
+                lightChart.setOption({ xAxis: [{ data: lightData.time }], series: [{ data: lightData.value }] });
+            }
+            updateStackedBar();
+            updateHeatmap();
+        } catch (e) { console.error('Chart update error:', e); }
+    }
+
+    // ---- Add data point ----
+    function addDataPoint(data) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        function push(arr, val, max) {
+            if (arr.length >= max) arr.shift();
+            arr.push(val);
+        }
+
+        push(tempData.time, timeStr, MAX_POINTS);
+        push(tempData.value, typeof data.temperature === 'number' ? data.temperature : null, MAX_POINTS);
+        push(humiData.time, timeStr, MAX_POINTS);
+        push(humiData.value, typeof data.humidity === 'number' ? data.humidity : null, MAX_POINTS);
+        push(lightData.time, timeStr, MAX_POINTS);
+        push(lightData.value, typeof data.light === 'number' ? data.light : null, MAX_POINTS);
+
+        if (typeof data.temperature === 'number' || typeof data.humidity === 'number' || typeof data.light === 'number') {
+            addHeatmapPoint(now, data.temperature, data.humidity, data.light);
+        }
+
+        updateAllCharts();
+    }
+
+    // ---- Update dashboard UI ----
+    function updateDashboard(data) {
+        if (data.device_id) document.getElementById('device-id').textContent = data.device_id;
+
+        const now = new Date();
+        const timeLabel = 'Updated: ' + now.toLocaleTimeString('en-US');
+
+        if (typeof data.temperature === 'number') {
+            document.getElementById('temperature').textContent = data.temperature.toFixed(1);
+            document.getElementById('temp-update').textContent = timeLabel;
+        }
+        if (typeof data.humidity === 'number') {
+            document.getElementById('humidity').textContent = data.humidity.toFixed(1);
+            document.getElementById('humidity-update').textContent = timeLabel;
+            updateLiquid(data.humidity);
+        }
+        if (typeof data.light === 'number') {
+            document.getElementById('light').textContent = Math.round(data.light);
+            document.getElementById('light-update').textContent = timeLabel;
+            updateGauge(data.light);
+        }
+        if (data.window_status !== undefined) {
+            const el = document.getElementById('window-status');
+            if (data.window_status === 0) {
+                el.textContent = 'CLOSED';
+                el.className = 'stat-mini-value window-closed';
+            } else {
+                el.textContent = 'OPEN';
+                el.className = 'stat-mini-value window-open';
+            }
+            document.getElementById('window-update').textContent = timeLabel;
+        }
+
+        updateDonut(
+            typeof data.temperature === 'number' ? data.temperature : 25,
+            typeof data.humidity === 'number' ? data.humidity : 50,
+            data.light
+        );
+    }
+
+    // ---- Alarm System ----
+    const ALARM_CFG = {
+        temperature: { min: 15, max: 30 },
+        humidity: { min: 30, max: 60 },
+        light: { min: 800, max: 3200 }
+    };
+    const alarms = [];
+
+    function checkAlarms(data) {
+        const fresh = [];
+        if (data.temperature < ALARM_CFG.temperature.min) {
+            fresh.push({ type: 'temperature', severity: 'warning', msg: `低温: ${data.temperature.toFixed(1)}°C (阈值 ${ALARM_CFG.temperature.min}°C)` });
+        } else if (data.temperature > ALARM_CFG.temperature.max) {
+            fresh.push({ type: 'temperature', severity: 'danger', msg: `高温: ${data.temperature.toFixed(1)}°C (阈值 ${ALARM_CFG.temperature.max}°C)` });
+        }
+        if (data.humidity < ALARM_CFG.humidity.min) {
+            fresh.push({ type: 'humidity', severity: 'warning', msg: `低湿: ${data.humidity.toFixed(1)}% (阈值 ${ALARM_CFG.humidity.min}%)` });
+        } else if (data.humidity > ALARM_CFG.humidity.max) {
+            fresh.push({ type: 'humidity', severity: 'danger', msg: `高湿: ${data.humidity.toFixed(1)}% (阈值 ${ALARM_CFG.humidity.max}%)` });
+        }
+        if (data.light < ALARM_CFG.light.min) {
+            fresh.push({ type: 'light', severity: 'warning', msg: `低光照: ${Math.round(data.light)} lux (阈值 ${ALARM_CFG.light.min} lux)` });
+        } else if (data.light > ALARM_CFG.light.max) {
+            fresh.push({ type: 'light', severity: 'danger', msg: `强光照: ${Math.round(data.light)} lux (阈值 ${ALARM_CFG.light.max} lux)` });
+        }
+
+        fresh.forEach(a => {
+            if (!alarms.some(x => x.msg === a.msg)) {
+                const now = new Date();
+                alarms.push({ ...a, time: now });
+                renderAlarm(a, now);
+            }
+        });
+
+        if (alarms.length > 20) alarms.splice(0, alarms.length - 20);
+    }
+
+    function renderAlarm(alarm, time) {
+        const container = document.getElementById('alarm-container');
+        const placeholder = container.querySelector('div[style]');
+        if (placeholder) placeholder.remove();
+
+        const el = document.createElement('div');
+        el.className = 'alarm-item ' + alarm.severity;
+        el.innerHTML = `
+            <span class="alarm-icon">${alarm.severity === 'danger' ? '🔴' : '🟡'}</span>
+            <div>
+                <div>${alarm.msg}</div>
+                <div class="alarm-time">${time.toLocaleTimeString('en-US')}</div>
+            </div>
+            <button class="alarm-close" onclick="this.parentElement.remove();">×</button>`;
+        container.insertBefore(el, container.firstChild);
+
+        if (container.children.length > 15) container.lastElementChild.remove();
+    }
+
+    document.getElementById('clear-alarms').addEventListener('click', () => {
+        document.getElementById('alarm-container').innerHTML = `
+            <div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:20px;">
+                <i class="fa-solid fa-circle-check" style="color:var(--success);font-size:1.5rem;display:block;margin-bottom:8px;"></i>
+                All systems normal
+            </div>`;
+        alarms.length = 0;
+    });
+
+    // ---- WebSocket ----
+    function connectWebSocket() {
+        const wsUrl = 'ws://localhost:8000/ws';
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            const badge = document.getElementById('ws-status');
+            badge.className = 'badge-status badge-online';
+            badge.innerHTML = '<span class="pulse-dot"></span> ONLINE';
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.temperature !== undefined || data.humidity !== undefined || data.light !== undefined) {
+                    addDataPoint(data);
+                    updateDashboard(data);
+                    checkAlarms(data);
+                }
+            } catch (e) { console.error('Parse error:', e); }
+        };
+
+        ws.onclose = () => {
+            const badge = document.getElementById('ws-status');
+            badge.className = 'badge-status badge-offline';
+            badge.innerHTML = '<span class="pulse-dot"></span> OFFLINE';
+            setTimeout(connectWebSocket, 5000);
+        };
+
+        ws.onerror = (e) => console.error('WS error:', e);
+    }
+
+    // ---- Resize handler ----
+    function resizeAll() {
+        [gaugeChart, liquidChart, donutChart, stackedBarChart, heatmapChart, temperatureChart, lightChart]
+            .forEach(c => { try { c && c.resize(); } catch(e){} });
+    }
+
+    // ---- Boot ----
+    document.addEventListener('DOMContentLoaded', () => {
+        initAllCharts();
+        connectWebSocket();
+        window.addEventListener('resize', resizeAll);
+    });
+    </script>
+</body>
+</html>

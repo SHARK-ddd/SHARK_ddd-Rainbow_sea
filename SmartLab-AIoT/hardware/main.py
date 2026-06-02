@@ -1,82 +1,123 @@
-# ESP32 MicroPython 主程序
-# 先用 Thonny 烧录 MicroPython 固件后运行
-
-import network
 import time
-from machine import ADC, Pin
-import urequests
+import machine
+import ubinascii
 import ujson
+from wifi import WiFiManager
+from mqtt import MQTTManager
+from sensor import SensorManager
 
-# ===== WiFi 配置 =====
-WIFI_SSID = "你的WiFi名称"      # 修改为你的WiFi名称
-WIFI_PASSWORD = "你的WiFi密码"  # 修改为你的WiFi密码
+# 配置信息
+WIFI_SSID = "17t"
+WIFI_PASSWORD = "19959085578"
+MQTT_SERVER = "192.168.140.233"  # 你电脑的WiFi IP地址
+MQTT_PORT = 1883
+MQTT_TOPIC_DATA = "lab/device/data"
+MQTT_TOPIC_HEARTBEAT = "lab/device/heartbeat"
 
-# ===== 后端配置 =====
-# 修改为你的电脑IP地址 (Windows 运行 ipconfig 查看)
-BACKEND_URL = "http://192.168.1.100:8000/api/sensor/data"
+# 生成唯一的设备ID
+DEVICE_ID = "esp32_s3_" + ubinascii.hexlify(machine.unique_id()).decode('utf-8')[:4]
 
-# ===== 光敏传感器配置 =====
-# 光敏模块接 GPIO34 (ADC1_CH6)
-light_sensor = ADC(Pin(34))
-light_sensor.atten(ADC.ATTN_11DB)  # 0-4095 范围
-
-def connect_wifi():
-    """连接 WiFi"""
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-
-    if not wlan.isconnected():
-        print(f"正在连接 WiFi: {WIFI_SSID}...")
-        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
-
-        timeout = 10
-        while not wlan.isconnected() and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            print(".", end="")
-
-    if wlan.isconnected():
-        print(f"\nWiFi 连接成功!")
-        print(f"IP 地址: {wlan.ifconfig()[0]}")
-        return wlan.ifconfig()[0]
-    else:
-        print("\nWiFi 连接失败!")
-        return None
-
-def send_sensor_data(sensor_type, value):
-    """发送传感器数据到后端"""
-    data = {
-        "sensor_id": "esp32-001",
-        "sensor_type": sensor_type,
-        "value": float(value)
-    }
-
-    try:
-        response = urequests.post(
-            BACKEND_URL,
-            data=ujson.dumps(data),
-            headers={"Content-Type": "application/json"}
+class SmartLabDevice:
+    def __init__(self):
+        self.wifi_manager = WiFiManager(WIFI_SSID, WIFI_PASSWORD)
+        self.mqtt_manager = MQTTManager(
+            client_id=DEVICE_ID,
+            server=MQTT_SERVER,
+            port=MQTT_PORT
         )
-        print(f"发送成功: {response.text}")
-        response.close()
-    except Exception as e:
-        print(f"发送失败: {e}")
+        self.sensor_manager = SensorManager()
+        self.last_heartbeat = 0
+        self.last_data_upload = 0
+
+    def connect_wifi(self):
+        """连接WiFi"""
+        return self.wifi_manager.connect()
+
+    def connect_mqtt(self):
+        """连接MQTT"""
+        return self.mqtt_manager.connect()
+
+    def reconnect_all(self):
+        """重新连接所有服务"""
+        print("尝试重新连接所有服务...")
+        self.wifi_manager.reconnect()
+        self.mqtt_manager.reconnect()
+
+    def send_heartbeat(self):
+        """发送心跳消息"""
+        current_time = time.time()
+        if current_time - self.last_heartbeat >= 30:  # 每30秒发送一次心跳
+            heartbeat_data = ujson.dumps({
+                "device_id": DEVICE_ID,
+                "status": "online"
+            })
+            self.mqtt_manager.publish(MQTT_TOPIC_HEARTBEAT, heartbeat_data)
+            self.last_heartbeat = current_time
+            return True
+        return False
+
+    def send_sensor_data(self):
+        """发送传感器数据"""
+        current_time = time.time()
+        if current_time - self.last_data_upload >= 5:
+            sensor_data = self.sensor_manager.get_sensor_data()
+            if sensor_data:
+                data_with_id = {
+                    "device_id": DEVICE_ID,
+                    "light": sensor_data["light"],
+                    "timestamp": int(time.time())
+                }
+                if "temperature" in sensor_data:
+                    data_with_id["temperature"] = sensor_data["temperature"]
+                if "humidity" in sensor_data:
+                    data_with_id["humidity"] = sensor_data["humidity"]
+                payload = ujson.dumps(data_with_id)
+                self.mqtt_manager.publish(MQTT_TOPIC_DATA, payload)
+                self.last_data_upload = current_time
+                return True
+        return False
+
+    def run(self):
+        """主运行循环"""
+        print(f"设备ID: {DEVICE_ID}")
+        print("SmartLab AIoT设备启动...")
+
+        # 初始化连接
+        if not self.connect_wifi():
+            print("WiFi连接失败，退出")
+            return
+
+        if not self.connect_mqtt():
+            print("MQTT连接失败，退出")
+            return
+
+        print("设备初始化完成，开始运行")
+
+        while True:
+            try:
+                # 发送心跳
+                self.send_heartbeat()
+
+                # 发送传感器数据
+                self.send_sensor_data()
+
+                # 检查连接状态
+                if not self.wifi_manager.is_connected() or not self.mqtt_manager.connected:
+                    print("检测到连接断开，尝试重新连接...")
+                    self.reconnect_all()
+
+                # 短暂休眠
+                time.sleep(1)
+
+            except Exception as e:
+                print(f"运行错误: {e}")
+                print("尝试重新连接...")
+                self.reconnect_all()
+                time.sleep(5)
 
 def main():
-    """主程序"""
-    ip = connect_wifi()
-    if not ip:
-        return
-
-    print("开始采集光敏数据...")
-
-    while True:
-        value = light_sensor.read()
-        print(f"光敏值: {value}")
-
-        send_sensor_data("light", value)
-
-        time.sleep(5)  # 每5秒采集一次
+    device = SmartLabDevice()
+    device.run()
 
 if __name__ == "__main__":
     main()
