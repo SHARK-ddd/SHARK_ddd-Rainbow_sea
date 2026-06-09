@@ -9,7 +9,7 @@ from sensor import SensorManager
 # 配置信息
 WIFI_SSID = "17t"
 WIFI_PASSWORD = "19959085578"
-MQTT_SERVER = "192.168.140.233"  # 你电脑的WiFi IP地址
+MQTT_SERVER = "192.168.255.233"  # 你电脑的WiFi IP地址
 MQTT_PORT = 1883
 MQTT_TOPIC_DATA = "lab/device/data"
 MQTT_TOPIC_HEARTBEAT = "lab/device/heartbeat"
@@ -71,6 +71,8 @@ class SmartLabDevice:
                     data_with_id["temperature"] = sensor_data["temperature"]
                 if "humidity" in sensor_data:
                     data_with_id["humidity"] = sensor_data["humidity"]
+                if "window_open" in sensor_data:
+                    data_with_id["window_open"] = sensor_data["window_open"]
                 payload = ujson.dumps(data_with_id)
                 self.mqtt_manager.publish(MQTT_TOPIC_DATA, payload)
                 self.last_data_upload = current_time

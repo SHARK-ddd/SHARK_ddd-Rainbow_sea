@@ -1,7 +1,37 @@
-fastapi
-uvicorn
-sqlalchemy
-paho-mqtt
-python-dotenv
-influxdb-client
-pydantic
+# SmartLab-AIoT 后端依赖库
+# 安装方式：pip install -r requirements.txt
+
+# Web 框架
+fastapi>=0.136.0          # FastAPI 框架（构建 API 接口）
+uvicorn>=0.20.0           # ASGI 服务器（运行 FastAPI 应用）
+
+# 数据库
+sqlalchemy>=2.0.0         # ORM 框架（操作数据库）
+pyodbc>=4.0.35            # SQL Server 数据库驱动
+
+# IoT 通信
+paho-mqtt>=1.6.1          # MQTT 客户端（连接 IoT 设备）
+
+# 工具库
+python-dotenv>=1.0.0      # 环境变量管理（读取 .env 文件）
+pydantic>=2.0.0           # 数据验证（API 请求/响应模型）
+
+# 说明：
+# - FastAPI: 高性能 Web 框架，用于构建 RESTful API
+# - SQLAlchemy: 数据库 ORM，支持 SQLite/SQL Server
+# - Paho-MQTT: MQTT 协议客户端，接收 ESP32 设备数据
+# - Pydantic: 数据验证和序列化，用于定义 API 请求/响应模型
+# - Python-dotenv: 环境变量管理，用于读取 .env 文件
+# - Uvicorn: ASGI 服务器，用于运行 FastAPI 应用
+# - SQL Server 数据库驱动，用于连接 SQL Server 数据库
+# - MQTT 客户端，用于连接 ESP32 设备
+# - 数据验证和序列化，用于定义 API 请求/响应模型
+# - 环境变量管理，用于读取 .env 文件
+# - ASGI 服务器，用于运行 FastAPI 应用
+# - SQL Server 数据库驱动，用于连接 SQL Server 数据库
+# - MQTT 客户端，用于连接 ESP32 设备
+# - 数据验证和序列化，用于定义 API 请求/响应模型
+# - 环境变量管理，用于读取 .env 文件
+# - ASGI 服务器，用于运行 FastAPI 应用
+# - SQL Server 数据库驱动，用于连接 SQL Server 数据库
+#

@@ -6,6 +6,10 @@ class SensorManager:
     def __init__(self):
         self.light_sensor = ADC(machine.Pin(3))
         self.light_sensor.atten(ADC.ATTN_11DB)
+        
+        self.reed_switch = Pin(10, Pin.IN, Pin.PULL_UP)
+        print("干簧管传感器初始化成功 (GPIO10)")
+        
         try:
             from dht import DHT11
             self.dht11 = DHT11(Pin(4))
@@ -41,11 +45,21 @@ class SensorManager:
             time.sleep_ms(200)
         return None
 
+    def read_reed_switch(self):
+        try:
+            raw_value = self.reed_switch.value()
+            window_open = bool(raw_value)
+            return window_open
+        except Exception as e:
+            print(f"干簧管读取失败: {e}")
+            return None
+
     def read_all_sensors(self):
         light = self.read_light_sensor()
         dht_data = self.read_dht11()
+        window_open = self.read_reed_switch()
         
-        result = {"light": light}
+        result = {"light": light, "window_open": window_open}
         if dht_data:
             result["temperature"] = dht_data["temperature"]
             result["humidity"] = dht_data["humidity"]
@@ -55,7 +69,7 @@ class SensorManager:
         max_retries = 3
         for attempt in range(max_retries):
             data = self.read_all_sensors()
-            if data["light"] is not None:
+            if data["light"] is not None or data["window_open"] is not None:
                 return data
             print(f"传感器读取失败，重试 {attempt + 1}/{max_retries}")
             time.sleep(1)

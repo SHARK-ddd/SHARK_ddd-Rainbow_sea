@@ -1,4 +1,29 @@
-from fastapi import APIRouter, HTTPException, Query
+"""
+API 路由模块 - 传感器数据接口定义
+
+功能概述：
+提供 RESTful API 接口，用于接收和查询传感器数据。
+
+主要功能：
+1. POST /api/sensor/data - 接收传感器上报的数据
+2. GET /api/sensor/data - 查询传感器历史数据（支持筛选和分页）
+
+数据模型：
+- SensorData: 传感器数据请求模型（设备上报用）
+- SensorResponse: 传感器数据响应模型（返回给客户端用）
+
+使用场景：
+- IoT 设备通过 POST 接口上报温度、湿度、光照等数据
+- 前端页面通过 GET 接口查询历史数据并展示
+
+接口示例：
+POST http://localhost:8000/api/sensor/data
+  Body: {"sensor_id": "esp32-001", "sensor_type": "temperature", "value": 25.5}
+
+GET http://localhost:8000/api/sensor/data?sensor_id=esp32-001&limit=50
+  Response: [{"sensor_id": "esp32-001", "value": 25.5, "timestamp": "..."}]
+"""
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List
@@ -6,27 +31,18 @@ from typing import Optional, List
 router = APIRouter()
 
 class SensorData(BaseModel):
-    sensor_id: str
-    sensor_type: str
-    value: float
-    timestamp: Optional[str] = None
+    """传感器数据请求模型 - 用于接收设备上报的数据"""
+    sensor_id: str        # 设备唯一标识（如：esp32-001）
+    sensor_type: str      # 传感器类型（如：temperature, humidity, light）
+    value: float          # 传感器读数
+    timestamp: Optional[str] = None  # 时间戳（可选，默认自动生成）
 
 class SensorResponse(BaseModel):
-    sensor_id: str
-    sensor_type: str
-    value: float
-    timestamp: str
-
-class EnvironmentData(BaseModel):
-    sensor_id: str
-    temperature: float
-    humidity: float
-    window_status: bool
-
-class GenericDataPoint(BaseModel):
-    measurement: str
-    tags: dict
-    fields: dict
+    """传感器数据响应模型 - 用于返回查询结果"""
+    sensor_id: str        # 设备唯一标识
+    sensor_type: str      # 传感器类型
+    value: float          # 传感器读数
+    timestamp: str        # 数据记录时间（ISO 格式）
 
 @router.post("/sensor/data")
 def receive_sensor_data(data: SensorData):
@@ -53,69 +69,3 @@ def get_sensor_history(
         )
         for r in records
     ]
-
-@router.post("/influxdb/environment")
-def write_environment_data(data: EnvironmentData):
-    from utils.influxdb_utils import influxdb_manager
-    
-    success = influxdb_manager.write_environment_data(
-        sensor_id=data.sensor_id,
-        temperature=data.temperature,
-        humidity=data.humidity,
-        window_status=data.window_status
-    )
-    
-    if success:
-        return {"status": "success", "message": "数据写入成功"}
-    else:
-        raise HTTPException(status_code=500, detail="InfluxDB写入失败")
-
-@router.post("/influxdb/write")
-def write_generic_data(data: GenericDataPoint):
-    from utils.influxdb_utils import influxdb_manager
-    
-    success = influxdb_manager.write_generic_data(
-        measurement=data.measurement,
-        tags=data.tags,
-        fields=data.fields
-    )
-    
-    if success:
-        return {"status": "success", "message": "数据写入成功"}
-    else:
-        raise HTTPException(status_code=500, detail="InfluxDB写入失败")
-
-@router.get("/influxdb/query")
-def query_influxdb_data(
-    measurement: str,
-    field: str,
-    start_time: str = Query("-1h")
-):
-    from utils.influxdb_utils import influxdb_manager
-    
-    data = influxdb_manager.query_data(
-        measurement=measurement,
-        field=field,
-        start_time=start_time
-    )
-    
-    return {"status": "success", "data": data}
-
-@router.get("/influxdb/environment")
-def get_environment_data(
-    start_time: str = Query("-1h")
-):
-    from utils.influxdb_utils import influxdb_manager
-    
-    data = influxdb_manager.query_environment_data(start_time=start_time)
-    
-    return {"status": "success", "data": data}
-
-@router.get("/influxdb/health")
-def check_influxdb_connection():
-    from utils.influxdb_utils import influxdb_manager
-    
-    if influxdb_manager.is_connected():
-        return {"status": "connected", "message": "InfluxDB连接正常"}
-    else:
-        return {"status": "disconnected", "message": "InfluxDB连接失败"}
